@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -9,7 +10,7 @@ import (
 )
 
 // Secret Key
-var secretKey = []byte("reyansh-secret-key-2024")
+var secretKey = []byte(os.Getenv("JWT_SECRET"))
 
 // Register Handler
 func Register(c *gin.Context) {

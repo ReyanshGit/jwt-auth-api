@@ -1,14 +1,17 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 var db *gorm.DB
 
-// User Model
 type User struct {
 	gorm.Model
 	Name     string `json:"name"`
@@ -16,9 +19,20 @@ type User struct {
 	Password string `json:"password"`
 }
 
-// Database Connect
 func connectDB() {
-	dsn := "host=localhost user=postgres password=Megha@420 dbname=productdb port=5432 sslmode=disable"
+	// .env load karo
+	godotenv.Load()
+
+	// .env se values lo
+	dsn := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_NAME"),
+		os.Getenv("DB_PORT"),
+	)
+
 	database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		panic("Database connect nahi hua!")
@@ -31,11 +45,10 @@ func main() {
 	connectDB()
 
 	r := gin.Default()
-	// Public Routes — Sab access kar sakte hain
+
 	r.POST("/register", Register)
 	r.POST("/login", Login)
 
-	// Protected Routes — Sirf login users!
 	protected := r.Group("/api")
 	protected.Use(AuthMiddleware())
 	{
