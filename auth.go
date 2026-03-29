@@ -12,66 +12,102 @@ import (
 // Secret Key
 var secretKey = []byte(os.Getenv("JWT_SECRET"))
 
-// Register Handler
+// auth.go — Register function update:
+
 func Register(c *gin.Context) {
-	var user User
-	c.Bind(&user)
+    var user User
 
-	// Password Hash karo
-	hashedPassword, _ := bcrypt.GenerateFromPassword(
-		[]byte(user.Password), bcrypt.DefaultCost)
-	user.Password = string(hashedPassword)
+    // ❌ Data sahi nahi aaya?
+    if err := c.ShouldBindJSON(&user); err != nil {
+        c.JSON(400, gin.H{
+            "error": "Data sahi nahi hai!",
+        })
+        return
+    }
 
-	// Database mein save karo
-	result := db.Create(&user)
-	if result.Error != nil {
-		c.JSON(400, gin.H{"error": "Email already hai!"})
-		return
-	}
+    // ❌ Fields khaali hain?
+    if user.Name == "" || user.Email == "" || user.Password == "" {
+        c.JSON(400, gin.H{
+            "error": "Name, Email aur Password zaroori hain!",
+        })
+        return
+    }
 
-	c.JSON(200, gin.H{
-		"message": "Register ho gaye Reyansh bhai!",
-		"name":    user.Name,
-		"email":   user.Email,
-	})
+    // Password hash karo
+    hashedPassword, err := bcrypt.GenerateFromPassword(
+        []byte(user.Password), bcrypt.DefaultCost)
+    if err != nil {
+        c.JSON(500, gin.H{
+            "error": "Password process nahi hua!",
+        })
+        return
+    }
+    user.Password = string(hashedPassword)
+
+    // Database mein save karo
+    if err := db.Create(&user).Error; err != nil {
+        c.JSON(400, gin.H{
+            "error": "Email already registered hai!",
+        })
+        return
+    }
+
+    c.JSON(201, gin.H{
+        "message": "Register ho gaye!",
+        "name":    user.Name,
+        "email":   user.Email,
+    })
 }
 
 // Login Handler
 func Login(c *gin.Context) {
-	var input User
-	var user User
+    var input User
+    var user User
 
-	c.Bind(&input)
+    // Data check karo
+    if err := c.ShouldBindJSON(&input); err != nil {
+        c.JSON(400, gin.H{
+            "error": "Data sahi nahi hai!",
+        })
+        return
+    }
 
-	// Email se user dhundho
-	result := db.Where("email = ?", input.Email).First(&user)
-	if result.Error != nil {
-		c.JSON(400, gin.H{"error": "Email nahi mila!"})
-		return
-	}
+    // Email se user dhundho
+    if err := db.Where("email = ?", input.Email).First(&user).Error; err != nil {
+        c.JSON(404, gin.H{
+            "error": "Email registered nahi hai!",
+        })
+        return
+    }
 
-	// Password check karo
-	err := bcrypt.CompareHashAndPassword(
-		[]byte(user.Password), []byte(input.Password))
-	if err != nil {
-		c.JSON(400, gin.H{"error": "Password galat hai!"})
-		return
-	}
+    // Password check karo
+    if err := bcrypt.CompareHashAndPassword(
+        []byte(user.Password), []byte(input.Password)); err != nil {
+        c.JSON(401, gin.H{
+            "error": "Password galat hai!",
+        })
+        return
+    }
 
-	// Token banao
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"id":    user.ID,
-		"email": user.Email,
-		"exp":   time.Now().Add(time.Hour * 24).Unix(),
-	})
+    // Token banao
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+        "id":    user.ID,
+        "email": user.Email,
+        "exp":   time.Now().Add(time.Hour * 24).Unix(),
+    })
 
-	tokenString, _ := token.SignedString(secretKey)
+    tokenString, err := token.SignedString(secretKey)
+    if err != nil {
+        c.JSON(500, gin.H{
+            "error": "Token nahi ban paya!",
+        })
+        return
+    }
 
-	c.JSON(200, gin.H{
-		"message": "Login ho gaye!",
-		"token":   tokenString,
-	})
-
+    c.JSON(200, gin.H{
+        "message": "Login ho gaye!",
+        "token":   tokenString,
+    })
 }
 
 func GetProfile(c *gin.Context) {
